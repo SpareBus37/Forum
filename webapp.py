@@ -77,18 +77,13 @@ def authorized():
 
 @app.route('/page1')
 def renderPage1():
-    if 'user_data' in session:
-        user_data_pprint = pprint.pformat(session['user_data'])#format the user data nicely
-    else:
-        user_data_pprint = '';
-    return render_template('page1.html',dump_user_data=user_data_pprint)
+    return render_template('page1.html')
+    session['player']=request.form['player']
 
 @app.route('/page2')
 def renderPage2():
-    if 'user_data' in session:
-        followers_pprint = pprint.pformat(session['user_data']['followers'])#format the user data nicely
-    else:
-        followers_pprint = '';
+    session['player']=request.form['player']
+    session['team']=request.form['team']
     return render_template('page2.html', followers = "You have " + followers_pprint + " followers.")
 
 @app.route('/googleb4c3aeedcc2dd103.html')
