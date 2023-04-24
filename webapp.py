@@ -75,16 +75,17 @@ def authorized():
     return render_template('message.html', message=message)
 
 
-@app.route('/page1')
-def renderPage1():
-    return render_template('page1.html')
-    session['player']=request.form['player']
-
-@app.route('/page2')
-def renderPage2():
+@app.route('/createPost')
+def rendercreatePost():
+    if 'github_token' in session:
+        return render_template('createPost.html')
+    else:
+        return render_template('pleaseLog.html')
+@app.route('/postCreated', methods=['get', 'post'])
+def renderpostCreated():
     session['player']=request.form['player']
     session['team']=request.form['team']
-    return render_template('page2.html', followers = "You have " + followers_pprint + " followers.")
+    return render_template('postCreated.html')
 
 @app.route('/googleb4c3aeedcc2dd103.html')
 def render_google_verification():
