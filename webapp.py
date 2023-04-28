@@ -1,10 +1,13 @@
-from flask import Flask, redirect, url_for, session, request, jsonify
+import pymongo
+import os
+import sys
+import pprint
+from flask import Flask, redirect, Markup, url_for, session, request, jsonify
 from flask_oauthlib.client import OAuth
 #from flask_oauthlib.contrib.apps import github #import to make requests to GitHub's OAuth
 from flask import render_template
+from bson.objectid import ObjectId
 
-import pprint
-import os
 
 # This code originally from https://github.com/lepture/flask-oauthlib/blob/master/example/github.py
 # Edited by P. Conrad for SPIS 2016 to add getting Client Id and Secret from
@@ -20,6 +23,12 @@ app.secret_key = os.environ['SECRET_KEY'] #used to sign session cookies
 oauth = OAuth(app)
 oauth.init_app(app) #initialize the app to be able to make requests for user information
 
+connection_string = os.environ["MONGO_CONNECTION_STRING"]
+db_name = os.environ["MONGO_DBNAME"]
+client = pymongo.MongoClient(connection_string)
+db = client[db_name]
+collection = db['Posts']
+    
 #Set up GitHub as OAuth provider
 github = oauth.remote_app(
     'github',
@@ -84,9 +93,30 @@ def rendercreatePost():
 @app.route('/postCreated', methods=['get', 'post'])
 def renderpostCreated():
     session['player']=request.form['player']
-    session['team']=request.form['team']
+    session['desc']=request.form['desc']
+    doc = {"Player":session["player"], "Description":session["desc"]}
+    collection.insert_one(doc)
     return render_template('postCreated.html')
+    
+@app.route('/posts')
+def renderPosts():
+    post=getPost()
+    return render_template('posts.html', post=post)
+    
+def getPost():
+    docs=""
+    for doc in collection.find():
+        docs += Markup("<div>" + "Topic: " + str(session["player"]) + "<br>" + "Description: " + str(session["desc"]) + "<form action=\"/delete\" method=\"post\"> <button type=\"submit\" name=\"delete\" value=\""+str(doc["_id"])+"\">Delete</button> </form>" + "</div>")
+    return docs
+   
+@app.route("/delete", methods=['post'])
+def renderDelete():
+    if 'delete' in request.form:
+        ID = request.form['delete']
+        collection.delete_one({'_id': ObjectId(ID)})
+    return redirect(url_for("renderPosts"))
 
+    
 @app.route('/googleb4c3aeedcc2dd103.html')
 def render_google_verification():
     return render_template('googleb4c3aeedcc2dd103.html')
@@ -96,6 +126,5 @@ def render_google_verification():
 def get_github_oauth_token():
     return session['github_token']
 
-
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=False)
