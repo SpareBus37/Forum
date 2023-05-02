@@ -28,6 +28,8 @@ db_name = os.environ["MONGO_DBNAME"]
 client = pymongo.MongoClient(connection_string)
 db = client[db_name]
 collection = db['Posts']
+
+
     
 #Set up GitHub as OAuth provider
 github = oauth.remote_app(
@@ -53,6 +55,7 @@ def inject_logged_in():
 @app.route('/')
 def home():
     return render_template('home.html')
+    
 
 #redirect to GitHub's OAuth page and confirm callback URL
 @app.route('/login')
@@ -94,7 +97,7 @@ def rendercreatePost():
 def renderpostCreated():
     session['player']=request.form['player']
     session['desc']=request.form['desc']
-    doc = {"Player":session["player"], "Description":session["desc"]}
+    doc = {"Player":session["player"], "Description":session["desc"], "User":session['user_data']['login']}
     collection.insert_one(doc)
     return render_template('postCreated.html')
     
@@ -106,7 +109,7 @@ def renderPosts():
 def getPost():
     docs=""
     for doc in collection.find():
-        docs += Markup("<div>" + "Topic: " + str(session["player"]) + "<br>" + "Description: " + str(session["desc"]) + "<form action=\"/delete\" method=\"post\"> <button type=\"submit\" name=\"delete\" value=\""+str(doc["_id"])+"\">Delete</button> </form>" + "</div>")
+        docs += Markup("<div>" + "Username: " + str(doc["User"]) + "<br>" + "Topic: " + str(doc["Player"]) + "<br>" + "Description: " + str(doc["Description"]) + "<form action=\"/delete\" method=\"post\"> <button type=\"submit\" name=\"delete\" value=\""+str(doc["_id"])+"\">Delete</button> </form>" + "</div>")
     return docs
    
 @app.route("/delete", methods=['post'])
@@ -127,4 +130,4 @@ def get_github_oauth_token():
     return session['github_token']
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=True)
