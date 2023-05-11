@@ -1,36 +1,25 @@
-import pymongo
-import os
-import sys
-import pprint
-from flask import Flask, redirect, Markup, url_for, session, request, jsonify
+from flask import Flask, redirect, url_for, session, request, jsonify, render_template, flash
+from flask_apscheduler import APScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 from flask_oauthlib.client import OAuth
-#from flask_oauthlib.contrib.apps import github #import to make requests to GitHub's OAuth
-from flask import render_template
 from bson.objectid import ObjectId
 
-
-# This code originally from https://github.com/lepture/flask-oauthlib/blob/master/example/github.py
-# Edited by P. Conrad for SPIS 2016 to add getting Client Id and Secret from
-# environment variables, so that this will work on Heroku.
-# Edited by S. Adams for Designing Software for the Web to add comments and remove flash messaging
-
+import pprint
+import os
+import time
+import pymongo
+import sys
+ 
 app = Flask(__name__)
 
-app.debug = False #Change this to False for production
-os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1' #Remove once done debugging
-
+#initialize scheduler with your preferred timezone
+scheduler = BackgroundScheduler({'apscheduler.timezone': 'America/Los_Angeles'})
+scheduler.start()
+ 
 app.secret_key = os.environ['SECRET_KEY'] #used to sign session cookies
 oauth = OAuth(app)
 oauth.init_app(app) #initialize the app to be able to make requests for user information
 
-connection_string = os.environ["MONGO_CONNECTION_STRING"]
-db_name = os.environ["MONGO_DBNAME"]
-client = pymongo.MongoClient(connection_string)
-db = client[db_name]
-collection = db['Posts']
-
-
-    
 #Set up GitHub as OAuth provider
 github = oauth.remote_app(
     'github',
@@ -44,6 +33,13 @@ github = oauth.remote_app(
     authorize_url='https://github.com/login/oauth/authorize' #URL for github's OAuth login
 )
 
+#Connect to database
+url = os.environ["MONGO_CONNECTION_STRING"]
+client = pymongo.MongoClient(url)
+db = client[os.environ["MONGO_DBNAME"]]
+collection = db['posts'] #TODO: put the name of the collection here
+
+print("connected to db")
 
 #context processors run before templates are rendered and add variable(s) to the template's context
 #context processors must return a dictionary 
@@ -55,79 +51,48 @@ def inject_logged_in():
 @app.route('/')
 def home():
     return render_template('home.html')
-    
-
+@app.route('/info1', methods=['GET', 'POST'])
+def info1():
+    return render_template('info1.html')
+@app.route('/info2', methods=['GET','POST'])
+def info2():
+    return render_template('info2.html')
+@app.route('/complete', methods=['GET', 'POST'])
+def complete():
+    return render_template('complete.html')
 #redirect to GitHub's OAuth page and confirm callback URL
 @app.route('/login')
 def login():   
-    return github.authorize(callback=url_for('authorized', _external=True, _scheme='http')) #callback URL must match the pre-configured callback URL
+    return github.authorize(callback=url_for('authorized', _external=True, _scheme='https')) #callback URL must match the pre-configured callback URL
 
 @app.route('/logout')
 def logout():
     session.clear()
-    return render_template('message.html', message='You were logged out')
+    flash('You were logged out.')
+    return redirect('/')
 
 @app.route('/login/authorized')
 def authorized():
     resp = github.authorized_response()
     if resp is None:
         session.clear()
-        message = 'Access denied: reason=' + request.args['error'] + ' error=' + request.args['error_description'] + ' full=' + pprint.pformat(request.args)      
+        flash('Access denied: reason=' + request.args['error'] + ' error=' + request.args['error_description'] + ' full=' + pprint.pformat(request.args), 'error')      
     else:
         try:
             session['github_token'] = (resp['access_token'], '') #save the token to prove that the user logged in
             session['user_data']=github.get('user').data
             #pprint.pprint(vars(github['/email']))
             #pprint.pprint(vars(github['api/2/accounts/profile/']))
-            message='You were successfully logged in as ' + session['user_data']['login'] + '.'
+            flash('You were successfully logged in as ' + session['user_data']['login'] + '.')
         except Exception as inst:
             session.clear()
             print(inst)
-            message='Unable to login, please try again.  '
-    return render_template('message.html', message=message)
-
-
-@app.route('/createPost')
-def rendercreatePost():
-    if 'github_token' in session:
-        return render_template('createPost.html')
-    else:
-        return render_template('pleaseLog.html')
-@app.route('/postCreated', methods=['get', 'post'])
-def renderpostCreated():
-    session['player']=request.form['player']
-    session['desc']=request.form['desc']
-    doc = {"Player":session["player"], "Description":session["desc"], "User":session['user_data']['login']}
-    collection.insert_one(doc)
-    return render_template('postCreated.html')
-    
-@app.route('/posts')
-def renderPosts():
-    post=getPost()
-    return render_template('posts.html', post=post)
-    
-def getPost():
-    docs=""
-    for doc in collection.find():
-        docs += Markup("<div>" + "Username: " + str(doc["User"]) + "<br>" + "Topic: " + str(doc["Player"]) + "<br>" + "Description: " + str(doc["Description"]) + "<form action=\"/delete\" method=\"post\"> <button type=\"submit\" name=\"delete\" value=\""+str(doc["_id"])+"\">Delete</button> </form>" + "</div>")
-    return docs
-   
-@app.route("/delete", methods=['post'])
-def renderDelete():
-    if 'delete' in request.form:
-        ID = request.form['delete']
-        collection.delete_one({'_id': ObjectId(ID)})
-    return redirect(url_for("renderPosts"))
-
-    
-@app.route('/googleb4c3aeedcc2dd103.html')
-def render_google_verification():
-    return render_template('googleb4c3aeedcc2dd103.html')
-
-#the tokengetter is automatically called to check who is logged in.
+            flash('Unable to login, please try again.', 'error')
+    return redirect('/')
+  
 @github.tokengetter
 def get_github_oauth_token():
     return session['github_token']
-
+  
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
