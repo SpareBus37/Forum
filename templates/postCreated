@@ -1,9 +1,0 @@
-{% extends "layout.html" %}
-
-{% block title %}page2{% endblock %}
-
-{% block content %}
-
-<p>Your post has been created!</p>
-
-{% endblock %}
